@@ -1255,7 +1255,8 @@ void ManeuversBuilder::UpdateManeuver(Maneuver& maneuver, int node_index) {
                                                     exit_number.pronunciation().value()});
       maneuver.mutable_signs()
           ->mutable_exit_number_list()
-          ->emplace_back(exit_number.text(), exit_number.is_route_number(), pronunciation);
+          ->emplace_back(exit_number.text(), exit_number.is_route_number(),
+                         exit_number.language_tag(), pronunciation);
     }
 
     // Exit branch
@@ -1266,7 +1267,8 @@ void ManeuversBuilder::UpdateManeuver(Maneuver& maneuver, int node_index) {
                                                     exit_onto_street.pronunciation().value()});
       maneuver.mutable_signs()
           ->mutable_exit_branch_list()
-          ->emplace_back(exit_onto_street.text(), exit_onto_street.is_route_number(), pronunciation);
+          ->emplace_back(exit_onto_street.text(), exit_onto_street.is_route_number(),
+                         exit_onto_street.language_tag(), pronunciation);
     }
 
     // Exit toward
@@ -1278,7 +1280,7 @@ void ManeuversBuilder::UpdateManeuver(Maneuver& maneuver, int node_index) {
       maneuver.mutable_signs()
           ->mutable_exit_toward_list()
           ->emplace_back(exit_toward_location.text(), exit_toward_location.is_route_number(),
-                         pronunciation);
+                         exit_toward_location.language_tag(), pronunciation);
     }
 
     // Exit name
@@ -1289,6 +1291,7 @@ void ManeuversBuilder::UpdateManeuver(Maneuver& maneuver, int node_index) {
                                                     exit_name.pronunciation().value()});
       maneuver.mutable_signs()->mutable_exit_name_list()->emplace_back(exit_name.text(),
                                                                        exit_name.is_route_number(),
+                                                                       exit_name.language_tag(),
                                                                        pronunciation);
     }
   }
@@ -1412,7 +1415,7 @@ void ManeuversBuilder::FinalizeManeuver(Maneuver& maneuver, int node_index) {
       maneuver.mutable_signs()
           ->mutable_guide_branch_list()
           ->emplace_back(guide_onto_street.text(), guide_onto_street.is_route_number(),
-                         pronunciation);
+                         guide_onto_street.language_tag(), pronunciation);
     }
 
     // Guide toward
@@ -1424,7 +1427,7 @@ void ManeuversBuilder::FinalizeManeuver(Maneuver& maneuver, int node_index) {
       maneuver.mutable_signs()
           ->mutable_guide_toward_list()
           ->emplace_back(guide_toward_location.text(), guide_toward_location.is_route_number(),
-                         pronunciation);
+                         guide_toward_location.language_tag(), pronunciation);
     }
 
     // Junction name
@@ -1435,7 +1438,8 @@ void ManeuversBuilder::FinalizeManeuver(Maneuver& maneuver, int node_index) {
                                                     junction_name.pronunciation().value()});
       maneuver.mutable_signs()
           ->mutable_junction_name_list()
-          ->emplace_back(junction_name.text(), junction_name.is_route_number(), pronunciation);
+          ->emplace_back(junction_name.text(), junction_name.is_route_number(),
+                         junction_name.language_tag(), pronunciation);
     }
   }
 
@@ -3064,6 +3068,7 @@ void ManeuversBuilder::EnhanceSignlessInterchnages(std::list<Maneuver>& maneuver
           ->mutable_exit_branch_list()
           ->emplace_back(next_man->street_names().front()->value(),
                          next_man->street_names().front()->is_route_number(),
+                         next_man->street_names().front()->language_tag(),
                          next_man->street_names().front()->pronunciation());
     }
 
