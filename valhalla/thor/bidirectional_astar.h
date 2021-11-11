@@ -238,8 +238,7 @@ protected:
                                               const Options& options,
                                               const valhalla::Location& origin,
                                               const valhalla::Location& dest,
-                                              const baldr::TimeInfo& time_info,
-                                              const bool invariant);
+                                              const baldr::TimeInfo& time_info);
 
   /**
    * Modify default (optimized for unidirectional search) hierarchy limits.

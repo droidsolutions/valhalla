@@ -554,7 +554,7 @@ BidirectionalAStar::GetBestPath(valhalla::Location& origin,
 
     // Terminate if the iterations threshold has been exceeded.
     if ((edgelabels_reverse_.size() + edgelabels_forward_.size()) > iterations_threshold_) {
-      return FormPath(graphreader, options, origin, destination, forward_time_info, invariant);
+      return FormPath(graphreader, options, origin, destination, forward_time_info);
     }
 
     // Get the next predecessor (based on which direction was expanded in prior step)
@@ -568,7 +568,7 @@ BidirectionalAStar::GetBestPath(valhalla::Location& origin,
 
         // Terminate if the cost threshold has been exceeded.
         if (fwd_pred.sortcost() + cost_diff_ > cost_threshold_) {
-          return FormPath(graphreader, options, origin, destination, forward_time_info, invariant);
+          return FormPath(graphreader, options, origin, destination, forward_time_info);
         }
 
         // Check if the edge on the forward search connects to a settled edge on the
@@ -587,7 +587,7 @@ BidirectionalAStar::GetBestPath(valhalla::Location& origin,
       } else {
         // Search is exhausted. If a connection has been found, return it
         if (!best_connections_.empty()) {
-          return FormPath(graphreader, options, origin, destination, forward_time_info, invariant);
+          return FormPath(graphreader, options, origin, destination, forward_time_info);
         }
         LOG_ERROR("Forward search exhausted: n = " + std::to_string(edgelabels_forward_.size()) +
                   "," + std::to_string(edgelabels_reverse_.size()));
@@ -618,7 +618,7 @@ BidirectionalAStar::GetBestPath(valhalla::Location& origin,
 
         // Terminate if the cost threshold has been exceeded.
         if (rev_pred.sortcost() > cost_threshold_) {
-          return FormPath(graphreader, options, origin, destination, forward_time_info, invariant);
+          return FormPath(graphreader, options, origin, destination, forward_time_info);
         }
 
         // Check if the edge on the reverse search connects to a settled edge on the
@@ -637,7 +637,7 @@ BidirectionalAStar::GetBestPath(valhalla::Location& origin,
       } else {
         // Search is exhausted. If a connection has been found, return it
         if (!best_connections_.empty()) {
-          return FormPath(graphreader, options, origin, destination, forward_time_info, invariant);
+          return FormPath(graphreader, options, origin, destination, forward_time_info);
         }
         LOG_ERROR("Reverse search exhausted: n = " + std::to_string(edgelabels_reverse_.size()) +
                   "," + std::to_string(edgelabels_forward_.size()));
@@ -1114,8 +1114,7 @@ std::vector<std::vector<PathInfo>> BidirectionalAStar::FormPath(GraphReader& gra
                                                                 const Options& /*options*/,
                                                                 const valhalla::Location& origin,
                                                                 const valhalla::Location& dest,
-                                                                const baldr::TimeInfo& time_info,
-                                                                const bool invariant) {
+                                                                const baldr::TimeInfo& time_info) {
   LOG_DEBUG("Found connections before stretch filter: " + std::to_string(best_connections_.size()));
 
   if (desired_paths_count_ > 1) {
