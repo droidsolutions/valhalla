@@ -5,9 +5,6 @@ using namespace valhalla;
 
 class TrafficTest : public ::testing::Test {
 protected:
-  static gurka::map map;
-  static uint32_t current, historical, constrained, freeflow;
-
   static void SetUpTestSuite() {
     const std::string ascii_map = R"(
       A----B-----C-----D
@@ -71,6 +68,9 @@ protected:
             std::to_string(map.nodes.at(to).lng()) % speed_types % date_time_type % date_time_value)
         .str();
   }
+
+  static gurka::map map;
+  static uint32_t current, historical, constrained, freeflow;
 };
 
 gurka::map TrafficTest::map = {};

@@ -535,7 +535,7 @@ public:
    *                       week so we modulus the time to day based seconds
    * @param  flow_sources  Which speed sources were used in this speed calculation. Optional pointer,
    *                       if nullptr is passed in flow_sources does nothing.
-   * @param  seconds_since_beginning   Seconds passed since the beginning of the route
+   * @param  travel_time_seconds Seconds passed since the beginning of the route
    * @return Returns the speed for the edge.
    */
   inline uint32_t GetSpeed(const DirectedEdge* de,
@@ -543,7 +543,7 @@ public:
                            uint32_t seconds = kInvalidSecondsOfWeek,
                            bool is_truck = false,
                            uint8_t* flow_sources = nullptr,
-                           const uint32_t seconds_since_beginning = 0) const {
+                           const uint32_t travel_time_seconds = 0) const {
     // if they dont want source info we bind it to a temp and no one will miss it
     uint8_t temp_sources;
     if (!flow_sources)
@@ -555,10 +555,12 @@ public:
     // TODO(danpat): for short-ish durations along the route, we should fade live
     //               speeds into any historic/predictive/average value we'd normally use
 
-    // the weight of live-traffic on a specific edge. In the beginning of the route
-    // the usage percentage should be around 100%, but the further the edge is from the origin node
-    // the less consistent live-traffic is. Decrease it's weight to 0 in 1 hour.
-    float live_traffic_multiplier = 1. - std::min(seconds_since_beginning / 3600., 1.);
+    // This parameter describes the weight of live-traffic on a specific edge. In the beginning of the
+    // route live-traffic gives more information about current congestion situation. But the further
+    // we go the less consistent this traffic is. We prioritize predicted traffic in this case.
+    // Want to have a smooth decrease function.
+    float live_traffic_multiplier = 1. - std::min(travel_time_seconds / 3600., 1.);
+
     uint32_t partial_live_speed = 0;
     float partial_live_pct = 0;
     if ((flow_mask & kCurrentFlowMask) && traffic_tile() && live_traffic_multiplier != 0.) {

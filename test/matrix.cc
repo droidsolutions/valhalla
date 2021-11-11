@@ -81,7 +81,7 @@ public:
                 const graph_tile_ptr& /*tile*/,
                 const uint32_t /*seconds*/,
                 uint8_t& /*flow_sources*/,
-                const uint32_t /*seconds_since_beginning*/) const override {
+                const uint32_t /*travel_time_seconds*/) const override {
     float sec = static_cast<float>(edge->length());
     return {sec / 10.0f, sec};
   }

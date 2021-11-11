@@ -274,16 +274,15 @@ public:
    * @param   edge    Pointer to a directed edge.
    * @param   tile    Pointer to the tile which contains the directed edge for speed lookup
    * @param   seconds Seconds of week for historical speed lookup
-   * @param   flow_sources  Which speed sources were used in this speed calculation. Optional pointer,
-   *                       if nullptr is passed in flow_sources does nothing.
-   * @param   seconds_since_beginning   Seconds passed since the beginning of the route
+   * @param   flow_sources  Which speed sources were used in this speed calculation.
+   * @param   travel_time_seconds   Seconds passed since the beginning of the route
    * @return  Returns the cost and time (seconds).
    */
   virtual Cost EdgeCost(const baldr::DirectedEdge* edge,
                         const graph_tile_ptr& tile,
                         const uint32_t seconds,
                         uint8_t& flow_sources,
-                        const uint32_t seconds_since_beginning = 0) const = 0;
+                        const uint32_t travel_time_seconds = 0) const = 0;
 
   /**
    * Get the cost to traverse the specified directed edge. Cost includes
