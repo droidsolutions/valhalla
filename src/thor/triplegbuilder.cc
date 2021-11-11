@@ -1279,7 +1279,6 @@ TripLeg_Edge* AddTripEdge(const AttributesController& controller,
  * @param tgt_pct     percent along the last edge of the path the end location snapped
  * @param time_info   the time tracking information representing the local time before
  *                    traversing the first edge
- * @param invariant   static date_time, dont offset the time as the path lengthens
  * @param reader      graph reader for tile access
  * @param leg         the already constructed trip leg to which extra cost information is added
  */
@@ -1288,7 +1287,6 @@ void AccumulateRecostingInfoForward(const valhalla::Options& options,
                                     float src_pct,
                                     float tgt_pct,
                                     const baldr::TimeInfo& time_info,
-                                    const bool invariant,
                                     valhalla::baldr::GraphReader& reader,
                                     valhalla::TripLeg& leg) {
   // bail if this is empty for some reason
@@ -1331,8 +1329,7 @@ void AccumulateRecostingInfoForward(const valhalla::Options& options,
     out_itr->mutable_recosts()->rbegin()->mutable_elapsed_cost()->set_cost(0);
     // do the recosting for this costing
     try {
-      sif::recost_forward(reader, *costing, edge_cb, label_cb, src_pct, tgt_pct, time_info,
-                          invariant);
+      sif::recost_forward(reader, *costing, edge_cb, label_cb, src_pct, tgt_pct, time_info);
       // no turn cost at the end of the leg
       out_itr->mutable_recosts()->rbegin()->mutable_transition_cost()->set_seconds(0);
       out_itr->mutable_recosts()->rbegin()->mutable_transition_cost()->set_cost(0);
@@ -1385,10 +1382,6 @@ void TripLegBuilder::Build(
   // Keep track of the time
   baldr::DateTime::tz_sys_info_cache_t tz_cache;
   const auto forward_time_info = baldr::TimeInfo::make(origin, graphreader, &tz_cache);
-
-  // check if we should use static time or offset time as the path lengthens
-  const bool invariant =
-      options.has_date_time_type() && options.date_time_type() == Options::invariant;
 
   // Create an array of travel types per mode
   uint8_t travel_types[4];
@@ -1513,8 +1506,7 @@ void TripLegBuilder::Build(
 
     // have to always compute the offset in case the timezone changes along the path
     // we could cache the timezone and just add seconds when the timezone doesnt change
-    const float seconds_offset =
-        (is_first_edge || invariant) ? 0.f : std::prev(edge_itr)->elapsed_cost.secs;
+    const float seconds_offset = is_first_edge ? 0.f : std::prev(edge_itr)->elapsed_cost.secs;
     time_info = forward_time_info.forward(seconds_offset, static_cast<int>(node->timezone()));
 
     // Add a node to the trip path and set its attributes.
@@ -1794,8 +1786,8 @@ void TripLegBuilder::Build(
   }
 
   // Add that extra costing information if requested
-  AccumulateRecostingInfoForward(options, start_pct, end_pct, forward_time_info, invariant,
-                                 graphreader, trip_path);
+  AccumulateRecostingInfoForward(options, start_pct, end_pct, forward_time_info, graphreader,
+                                 trip_path);
 }
 
 } // namespace thor

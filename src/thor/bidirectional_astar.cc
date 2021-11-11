@@ -1270,7 +1270,7 @@ std::vector<std::vector<PathInfo>> BidirectionalAStar::FormPath(GraphReader& gra
     // recost edges in final path; ignore access restrictions
     try {
       sif::recost_forward(graphreader, *costing_, edge_cb, label_cb, source_pct, target_pct,
-                          time_info, invariant, true);
+                          time_info, true);
     } catch (const std::exception& e) {
       LOG_ERROR(std::string("Bi-directional astar failed to recost final path: ") + e.what());
       continue;

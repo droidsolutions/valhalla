@@ -16,7 +16,6 @@ namespace sif {
  * @param target_pct        the percent along the final edge the target location is
  * @param time_info         the time tracking information representing the local time before
  *                          traversing the first edge
- * @param invariant         static date_time, dont offset the time as the path lengthens
  * @param ignore_access     ignore access restrictions for edges and nodes if it's true
  */
 void recost_forward(baldr::GraphReader& reader,
@@ -26,7 +25,6 @@ void recost_forward(baldr::GraphReader& reader,
                     float source_pct,
                     float target_pct,
                     const baldr::TimeInfo& time_info,
-                    const bool invariant,
                     const bool ignore_access) {
   // out of bounds edge scaling
   if (source_pct < 0.f || source_pct > 1.f || target_pct < 0.f || target_pct > 1.f) {
@@ -83,8 +81,8 @@ void recost_forward(baldr::GraphReader& reader,
       throw std::runtime_error("This path requires different node access than this costing allows");
     }
 
-    // Update the time information even if time is invariant to account for timezones
-    const auto seconds_offset = invariant ? 0.f : cost.secs;
+    // Update the time information
+    const auto seconds_offset = cost.secs;
     const auto offset_time =
         node ? time_info.forward(seconds_offset, static_cast<int>(node->timezone())) : time_info;
 
@@ -122,7 +120,8 @@ void recost_forward(baldr::GraphReader& reader,
     // update the cost to the end of this edge
     uint8_t flow_sources;
     cost += transition_cost +
-            costing.EdgeCost(edge, tile, offset_time.second_of_week, flow_sources) * edge_pct;
+            costing.EdgeCost(edge, tile, offset_time.second_of_week, flow_sources, seconds_offset) *
+                edge_pct;
     // update the length to the end of this edge
     length += edge->length() * edge_pct;
     // construct the label

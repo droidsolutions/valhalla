@@ -197,7 +197,8 @@ public:
   virtual Cost EdgeCost(const baldr::DirectedEdge* edge,
                         const graph_tile_ptr& tile,
                         const uint32_t seconds,
-                        uint8_t& flow_sources) const override;
+                        uint8_t& flow_sources,
+                        const uint32_t seconds_since_beginning) const override;
 
   /**
    * Returns the cost to make the transition from the predecessor edge.
@@ -426,8 +427,10 @@ bool TruckCost::AllowedReverse(const baldr::DirectedEdge* edge,
 Cost TruckCost::EdgeCost(const baldr::DirectedEdge* edge,
                          const graph_tile_ptr& tile,
                          const uint32_t seconds,
-                         uint8_t& flow_sources) const {
-  auto edge_speed = tile->GetSpeed(edge, flow_mask_, seconds, true, &flow_sources);
+                         uint8_t& flow_sources,
+                         const uint32_t seconds_since_beginning) const {
+  auto edge_speed =
+      tile->GetSpeed(edge, flow_mask_, seconds, true, &flow_sources, seconds_since_beginning);
   auto final_speed = std::min(edge_speed, top_speed_);
   float sec = edge->length() * speedfactor_[final_speed];
 
