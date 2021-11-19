@@ -1391,9 +1391,16 @@ function filter_tags_generic(kv)
        end
   end
 
-   --toss actual areas
-   if kv["area"] == "yes" then
-     return 1
+  --toss actual areas
+  if kv["area"] == "yes" then
+    if kv['pedestrian_forward'] == "true" 
+    or kv["pedestrian_backward"] == "true" 
+    or kv["bike_forward"] == "true" 
+    or kv["bike_backward"] == "true" then
+
+    else
+      return 1
+    end
    end
 
    delete_tags = { 'FIXME', 'note', 'source' }
