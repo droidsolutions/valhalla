@@ -26,7 +26,7 @@
 #include "midgard/sequence.h"
 #include "midgard/tiles.h"
 #include "mjolnir/timeparsing.h"
-#include "proto/tripcommon.pb.h"
+#include "proto/common.pb.h"
 
 using namespace valhalla::midgard;
 using namespace valhalla::baldr;
@@ -161,6 +161,7 @@ public:
     }
 
     include_driveways_ = pt.get<bool>("include_driveways", true);
+    include_construction_ = pt.get<bool>("include_construction", false);
     infer_internal_intersections_ =
         pt.get<bool>("data_processing.infer_internal_intersections", true);
     infer_turn_channels_ = pt.get<bool>("data_processing.infer_turn_channels", true);
@@ -375,8 +376,14 @@ public:
         case Use::kPath:
           way_.set_use(Use::kPath);
           break;
+        case Use::kElevator:
+          way_.set_use(Use::kElevator);
+          break;
         case Use::kSteps:
           way_.set_use(Use::kSteps);
+          break;
+        case Use::kEscalator:
+          way_.set_use(Use::kEscalator);
           break;
         case Use::kBridleway:
           way_.set_use(Use::kBridleway);
@@ -413,6 +420,9 @@ public:
           break;
         case Use::kOther:
           way_.set_use(Use::kOther);
+          break;
+        case Use::kConstruction:
+          way_.set_use(Use::kConstruction);
           break;
         case Use::kRoad:
         default:
@@ -484,6 +494,14 @@ public:
     tag_handlers_["tunnel:name"] = [this]() {
       if (!tag_.second.empty())
         way_.set_tunnel_name_index(osmdata_.name_offset_map.index(tag_.second));
+    };
+    tag_handlers_["level"] = [this]() {
+      if (!tag_.second.empty())
+        way_.set_level_index(osmdata_.name_offset_map.index(tag_.second));
+    };
+    tag_handlers_["level:ref"] = [this]() {
+      if (!tag_.second.empty())
+        way_.set_level_ref_index(osmdata_.name_offset_map.index(tag_.second));
     };
     tag_handlers_["name:pronunciation"] = [this]() {
       if (!tag_.second.empty()) {
@@ -1057,6 +1075,7 @@ public:
     tag_handlers_["tunnel"] = [this]() { way_.set_tunnel(tag_.second == "true" ? true : false); };
     tag_handlers_["toll"] = [this]() { way_.set_toll(tag_.second == "true" ? true : false); };
     tag_handlers_["bridge"] = [this]() { way_.set_bridge(tag_.second == "true" ? true : false); };
+    tag_handlers_["indoor"] = [this]() { way_.set_indoor(tag_.second == "yes" ? true : false); };
     tag_handlers_["seasonal"] = [this]() { way_.set_seasonal(tag_.second == "true" ? true : false); };
     tag_handlers_["bike_network_mask"] = [this]() { way_.set_bike_network(std::stoi(tag_.second)); };
     //    tag_handlers_["bike_national_ref"] = [this]() {
@@ -1419,7 +1438,7 @@ public:
 
       // bail if there is nothing bike related
       Tags::const_iterator found;
-      if (!results.has_value() || (found = results->find("amenity")) == results->end() ||
+      if (!results || (found = results->find("amenity")) == results->end() ||
           found->second != "bicycle_rental") {
         return;
       }
@@ -1603,6 +1622,14 @@ public:
         osmdata_.edge_count += !intersection;
         intersection = true;
         n.set_type(NodeType::kSumpBuster);
+      } else if (tag.first == "building_entrance" && tag.second == "true") {
+        osmdata_.edge_count += !intersection;
+        intersection = true;
+        n.set_type(NodeType::kBuildingEntrance);
+      } else if (tag.first == "elevator" && tag.second == "true") {
+        osmdata_.edge_count += !intersection;
+        intersection = true;
+        n.set_type(NodeType::kElevator);
       } else if (tag.first == "access_mask") {
         n.set_access(std::stoi(tag.second));
       } else if (tag.first == "tagged_access") {
@@ -1685,17 +1712,22 @@ public:
       return;
     }
 
-    // Throw away driveways if include_driveways_ is false
-    Tags::const_iterator driveways;
     try {
-      if (!include_driveways_ && (driveways = results.find("use")) != results.end() &&
-          static_cast<Use>(std::stoi(driveways->second)) == Use::kDriveway) {
+      // Throw away use if include_driveways_ is false
+      Tags::const_iterator use;
+      if (!include_driveways_ && (use = results.find("use")) != results.end() &&
+          static_cast<Use>(std::stoi(use->second)) == Use::kDriveway) {
 
-        // only private driveways.
+        // only private use.
         Tags::const_iterator priv;
         if ((priv = results.find("private")) != results.end() && priv->second == "true") {
           return;
         }
+      }
+      // Throw away constructions if include_construction_ is false
+      if (!include_construction_ && (use = results.find("use")) != results.end() &&
+          static_cast<Use>(std::stoi(use->second)) == Use::kConstruction) {
+        return;
       }
     } catch (const std::invalid_argument& arg) {
       LOG_INFO("invalid_argument thrown for way id: " + std::to_string(osmid_));
@@ -1859,7 +1891,7 @@ public:
 
     // We need to set a data processing flag so we need to
     // process in pbfgraphparser instead of lua because of config option use_rest_area
-    if (use_rest_area_ && service_ == "rest_area") {
+    if (use_rest_area_ && service_ == "rest_area" && way_.use() != Use::kConstruction) {
       if (amenity_ == "yes") {
         way_.set_use(Use::kServiceArea);
       } else {
@@ -1900,7 +1932,7 @@ public:
     }
 
     // add int_refs to the end of the refs for now.  makes sure that we don't add dups.
-    if (use_direction_on_ways_ && way_.int_ref_index()) {
+    if (way_.int_ref_index()) {
       std::string tmp = osmdata_.name_offset_map.name(way_.ref_index());
 
       std::vector<std::string> rs = GetTagTokens(tmp);
@@ -1931,9 +1963,7 @@ public:
 
     // add int_ref pronunciations to the end of the pronunciation refs for now.  makes sure that we
     // don't add dups.
-    if (use_direction_on_ways_) {
-      MergeRefPronunciations();
-    }
+    MergeRefPronunciations();
 
     // Process mtb tags.
     auto mtb_scale = results.find("mtb:scale");
@@ -1954,10 +1984,10 @@ public:
 
         // Set bicycle access to true for all but the highest scale.
         bool access = scale < kMaxMtbScale;
-        if (access && !way_.oneway_reverse()) {
+        if (access && !way_.oneway_reverse() && way_.use() != Use::kConstruction) {
           way_.set_bike_forward(true);
         }
-        if (access && !way_.oneway()) {
+        if (access && !way_.oneway() && way_.use() != Use::kConstruction) {
           way_.set_bike_backward(true);
         }
       }
@@ -1981,10 +2011,10 @@ public:
 
         // Set bicycle access to true for all but the highest scale.
         bool access = scale < kMaxMtbUphillScale;
-        if (access && !way_.oneway_reverse()) {
+        if (access && !way_.oneway_reverse() && way_.use() != Use::kConstruction) {
           way_.set_bike_forward(true);
         }
-        if (access && !way_.oneway()) {
+        if (access && !way_.oneway() && way_.use() != Use::kConstruction) {
           way_.set_bike_backward(true);
         }
       }
@@ -1995,7 +2025,7 @@ public:
     bool has_mtb_imba = mtb_imba_scale != results.end();
     if (has_mtb_imba) {
       // Update bike access (only if neither mtb:scale nor mtb:scale:uphill is present)
-      if (!has_mtb_scale && !has_mtb_uphill_scale) {
+      if (!has_mtb_scale && !has_mtb_uphill_scale && way_.use() != Use::kConstruction) {
         if (!way_.oneway_reverse()) {
           way_.set_bike_forward(true);
         }
@@ -2007,7 +2037,8 @@ public:
 
     // Only has MTB description - set bicycle access.
     bool has_mtb_desc = results.find("mtb:description") != results.end();
-    if (has_mtb_desc && !has_mtb_scale && !has_mtb_uphill_scale && !has_mtb_imba) {
+    if (has_mtb_desc && !has_mtb_scale && !has_mtb_uphill_scale && !has_mtb_imba &&
+        way_.use() != Use::kConstruction) {
       if (!way_.oneway_reverse()) {
         way_.set_bike_forward(true);
       }
@@ -2903,6 +2934,9 @@ public:
   // Configuration option to include driveways
   bool include_driveways_;
 
+  // Configuration option to include roads under construction
+  bool include_construction_;
+
   // Configuration option indicating whether or not to infer internal intersections during the graph
   // enhancer phase or use the internal_intersection key from the pbf
   bool infer_internal_intersections_;
@@ -3151,15 +3185,22 @@ void PBFGraphParser::ParseNodes(const boost::property_tree::ptree& pt,
 
   if (pt.get<bool>("import_bike_share_stations", false)) {
     LOG_INFO("Parsing bss nodes...");
+
+    bool create = true;
     for (auto& file_handle : file_handles) {
       callback.current_way_node_index_ = callback.last_node_ = callback.last_way_ =
           callback.last_relation_ = 0;
       // we send a null way_nodes file so that only the bike share stations are parsed
       callback.reset(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                     new sequence<OSMNode>(bss_nodes_file, true));
+                     new sequence<OSMNode>(bss_nodes_file, create));
       OSMPBF::Parser::parse(file_handle, static_cast<OSMPBF::Interest>(OSMPBF::Interest::NODES),
                             callback);
+      create = false;
     }
+    // Since the sequence must be flushed before reading it...
+    callback.reset(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+    LOG_INFO("Found " + std::to_string(sequence<OSMNode>{bss_nodes_file, false}.size()) +
+             " bss nodes...");
   }
   callback.reset(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 

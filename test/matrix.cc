@@ -30,7 +30,7 @@ public:
    * Constructor.
    * @param  options Request options in a pbf
    */
-  SimpleCost(const CostingOptions& options) : DynamicCost(options, TravelMode::kDrive, kAutoAccess) {
+  SimpleCost(const Costing& options) : DynamicCost(options, sif::TravelMode::kDrive, kAutoAccess) {
   }
 
   ~SimpleCost() {
@@ -79,7 +79,7 @@ public:
 
   Cost EdgeCost(const DirectedEdge* edge,
                 const graph_tile_ptr& /*tile*/,
-                const uint32_t /*seconds*/,
+                const baldr::TimeInfo& /*time_info*/,
                 uint8_t& /*flow_sources*/) const override {
     float sec = static_cast<float>(edge->length());
     return {sec / 10.0f, sec};
@@ -116,7 +116,7 @@ public:
   }
 };
 
-cost_ptr_t CreateSimpleCost(const CostingOptions& options) {
+cost_ptr_t CreateSimpleCost(const Costing& options) {
   return std::make_shared<SimpleCost>(options);
 }
 
@@ -142,10 +142,11 @@ void adjust_scores(Options& options) {
     for (auto& location : *locations) {
       // get the minimum score for all the candidates
       auto minScore = std::numeric_limits<float>::max();
-      for (auto* candidates : {location.mutable_path_edges(), location.mutable_filtered_edges()}) {
+      for (auto* candidates : {location.mutable_correlation()->mutable_edges(),
+                               location.mutable_correlation()->mutable_filtered_edges()}) {
         for (auto& candidate : *candidates) {
           // completely disable scores for this location
-          if (location.has_rank_candidates() && !location.rank_candidates())
+          if (location.skip_ranking_candidates())
             candidate.set_distance(0);
           // scale the score to favor closer results more
           else
@@ -157,8 +158,9 @@ void adjust_scores(Options& options) {
       }
 
       // subtract off the min score and cap at max so that path algorithm doesnt go too far
-      auto max_score = kMaxDistances.find(Costing_Enum_Name(options.costing()));
-      for (auto* candidates : {location.mutable_path_edges(), location.mutable_filtered_edges()}) {
+      auto max_score = kMaxDistances.find(Costing_Enum_Name(options.costing_type()));
+      for (auto* candidates : {location.mutable_correlation()->mutable_edges(),
+                               location.mutable_correlation()->mutable_filtered_edges()}) {
         for (auto& candidate : *candidates) {
           candidate.set_distance(candidate.distance() - minScore);
           if (candidate.distance() > max_score->second)
@@ -225,13 +227,13 @@ TEST(Matrix, test_matrix) {
   GraphReader reader(config.get_child("mjolnir"));
 
   sif::mode_costing_t mode_costing;
-  mode_costing[0] = CreateSimpleCost(
-      request.options().costing_options(static_cast<int>(request.options().costing())));
+  mode_costing[0] =
+      CreateSimpleCost(request.options().costings().find(request.options().costing_type())->second);
 
   CostMatrix cost_matrix;
   std::vector<TimeDistance> results =
       cost_matrix.SourceToTarget(request.options().sources(), request.options().targets(), reader,
-                                 mode_costing, TravelMode::kDrive, 400000.0);
+                                 mode_costing, sif::TravelMode::kDrive, 400000.0);
   for (uint32_t i = 0; i < results.size(); ++i) {
     EXPECT_NEAR(results[i].dist, matrix_answers[i].dist, kThreshold)
         << "result " + std::to_string(i) + "'s distance is not close enough" +
@@ -242,9 +244,35 @@ TEST(Matrix, test_matrix) {
                " to expected value for CostMatrix";
   }
 
+  CostMatrix cost_matrix_abort_source;
+  results = cost_matrix_abort_source.SourceToTarget(request.options().sources(),
+                                                    request.options().targets(), reader, mode_costing,
+                                                    sif::TravelMode::kDrive, 100000.0);
+
+  uint32_t found = 0;
+  for (uint32_t i = 0; i < results.size(); ++i) {
+    if (results[i].dist < kMaxCost) {
+      ++found;
+    }
+  }
+  EXPECT_EQ(found, 15) << " not the number of results as expected";
+
+  CostMatrix cost_matrix_abort_target;
+  results = cost_matrix_abort_target.SourceToTarget(request.options().sources(),
+                                                    request.options().targets(), reader, mode_costing,
+                                                    sif::TravelMode::kDrive, 50000.0);
+
+  found = 0;
+  for (uint32_t i = 0; i < results.size(); ++i) {
+    if (results[i].dist < kMaxCost) {
+      ++found;
+    }
+  }
+  EXPECT_EQ(found, 10) << " not the number of results as expected";
+
   TimeDistanceMatrix timedist_matrix;
   results = timedist_matrix.SourceToTarget(request.options().sources(), request.options().targets(),
-                                           reader, mode_costing, TravelMode::kDrive, 400000.0);
+                                           reader, mode_costing, sif::TravelMode::kDrive, 400000.0);
   for (uint32_t i = 0; i < results.size(); ++i) {
     EXPECT_NEAR(results[i].dist, matrix_answers[i].dist, kThreshold)
         << "result " + std::to_string(i) + "'s distance is not equal to" +
@@ -269,13 +297,13 @@ TEST(Matrix, DISABLED_test_matrix_osrm) {
   GraphReader reader(config.get_child("mjolnir"));
 
   sif::mode_costing_t mode_costing;
-  mode_costing[0] = CreateSimpleCost(
-      request.options().costing_options(static_cast<int>(request.options().costing())));
+  mode_costing[0] =
+      CreateSimpleCost(request.options().costings().find(request.options().costing_type())->second);
 
   CostMatrix cost_matrix;
   std::vector<TimeDistance> results;
   results = cost_matrix.SourceToTarget(request.options().sources(), request.options().targets(),
-                                       reader, mode_costing, TravelMode::kDrive, 400000.0);
+                                       reader, mode_costing, sif::TravelMode::kDrive, 400000.0);
   for (uint32_t i = 0; i < results.size(); ++i) {
     EXPECT_EQ(results[i].dist, matrix_answers[i].dist)
         << "result " + std::to_string(i) +
@@ -288,7 +316,7 @@ TEST(Matrix, DISABLED_test_matrix_osrm) {
 
   TimeDistanceMatrix timedist_matrix;
   results = timedist_matrix.SourceToTarget(request.options().sources(), request.options().targets(),
-                                           reader, mode_costing, TravelMode::kDrive, 400000.0);
+                                           reader, mode_costing, sif::TravelMode::kDrive, 400000.0);
   for (uint32_t i = 0; i < results.size(); ++i) {
     EXPECT_EQ(results[i].dist, matrix_answers[i].dist)
         << "result " + std::to_string(i) +
@@ -298,6 +326,48 @@ TEST(Matrix, DISABLED_test_matrix_osrm) {
         << "result " + std::to_string(i) +
                "'s time is not equal to the expected value for TimeDistMatrix";
   }
+}
+
+const auto test_request_partial = R"({
+    "sources":[
+      {"lat":52.103948,"lon":5.06813}
+    ],
+    "targets":[
+      {"lat":52.106126,"lon":5.101497},
+      {"lat":52.100469,"lon":5.087099},
+      {"lat":52.103105,"lon":5.081005},
+      {"lat":52.094273,"lon":5.075254}
+    ],
+    "costing":"auto",
+    "matrix_locations":2
+  })";
+
+TEST(Matrix, partial_matrix) {
+  loki_worker_t loki_worker(config);
+
+  Api request;
+  ParseApi(test_request_partial, Options::sources_to_targets, request);
+  loki_worker.matrix(request);
+  adjust_scores(*request.mutable_options());
+
+  GraphReader reader(config.get_child("mjolnir"));
+
+  sif::mode_costing_t mode_costing;
+  mode_costing[0] =
+      CreateSimpleCost(request.options().costings().find(request.options().costing_type())->second);
+
+  TimeDistanceMatrix timedist_matrix;
+  std::vector<TimeDistance> results =
+      timedist_matrix.SourceToTarget(request.options().sources(), request.options().targets(), reader,
+                                     mode_costing, sif::TravelMode::kDrive, 400000.0,
+                                     request.options().matrix_locations());
+  uint32_t found = 0;
+  for (uint32_t i = 0; i < results.size(); ++i) {
+    if (results[i].dist > 0) {
+      ++found;
+    }
+  }
+  EXPECT_EQ(found, 2) << " partial result did not find 2 results as expected";
 }
 
 int main(int argc, char* argv[]) {
