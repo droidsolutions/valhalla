@@ -1,8 +1,9 @@
 repos:
-  # Autoformat: Shell files
+  # liniting c++ and python
   - repo: local
     hooks:
     - id: format
       name: format
       entry: bash ./scripts/format.sh
       language: system
+      pass_filenames: false

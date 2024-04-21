@@ -35,7 +35,7 @@
 namespace valhalla {
 namespace thor {
 
-#ifdef HAVE_HTTP
+#ifdef ENABLE_SERVICES
 void run_service(const boost::property_tree::ptree& config);
 #endif
 
@@ -45,18 +45,14 @@ public:
   thor_worker_t(const boost::property_tree::ptree& config,
                 const std::shared_ptr<baldr::GraphReader>& graph_reader = {});
   virtual ~thor_worker_t();
-#ifdef HAVE_HTTP
+#ifdef ENABLE_SERVICES
   virtual prime_server::worker_t::result_t work(const std::list<zmq::message_t>& job,
                                                 void* request_info,
                                                 const std::function<void()>& interrupt) override;
 #endif
   virtual void cleanup() override;
 
-  static std::string offset_date(baldr::GraphReader& reader,
-                                 const std::string& in_dt,
-                                 const baldr::GraphId& in_edge,
-                                 float offset,
-                                 const baldr::GraphId& out_edge);
+  static void adjust_scores(valhalla::Options& options);
 
   void route(Api& request);
   std::string matrix(Api& request);
@@ -81,6 +77,8 @@ protected:
                                           const Location& origin,
                                           const Location& destination,
                                           const Options& options);
+  thor::MatrixAlgorithm*
+  get_matrix_algorithm(Api& request, const bool has_time, const std::string& costing);
   void route_match(Api& request);
   /**
    * Returns the results of the map match where the first float is the normalized
@@ -93,8 +91,6 @@ protected:
 
   void path_arrive_by(Api& api, const std::string& costing);
   void path_depart_at(Api& api, const std::string& costing);
-
-  void parse_locations(Api& request);
   void parse_measurements(const Api& request);
   std::string parse_costing(const Api& request);
 
@@ -134,6 +130,7 @@ protected:
   float max_timedep_distance;
   std::unordered_map<std::string, float> max_matrix_distance;
   SOURCE_TO_TARGET_ALGORITHM source_to_target_algorithm;
+  bool costmatrix_allow_second_pass;
   std::shared_ptr<baldr::GraphReader> reader;
   meili::MapMatcherFactory matcher_factory;
   baldr::AttributesController controller;

@@ -58,6 +58,13 @@ protected:
         {"AB",
          {{"highway", "service"},
           {"motorcar:conditional", deliveryAllowed},
+          {"motorcycle:conditional", deliveryAllowed},
+          {"moped:conditional", deliveryAllowed},
+          {"psv:conditional", deliveryAllowed},
+          {"taxi:conditional", deliveryAllowed},
+          {"bus:conditional", deliveryAllowed},
+          {"hov:conditional", deliveryAllowed},
+          {"emergency:conditional", deliveryAllowed},
           {"bicycle:conditional", timeDenied},
           {"foot:conditional", designatedAllowed}}},
         {"BC", {{"highway", "service"}, {"motorcar:conditional", destinationAllowed}}},
@@ -90,8 +97,9 @@ protected:
     };
 
     const auto layout = gurka::detail::map_to_coordinates(ascii_map, grid_size_meters);
-    map = gurka::buildtiles(layout, ways, {}, {}, "test/data/conditional_restrictions",
-                            {{"mjolnir.timezone", {"test/data/tz.sqlite"}}});
+    map = gurka::buildtiles(layout, ways, {}, {},
+                            VALHALLA_BUILD_DIR "test/data/conditional_restrictions",
+                            {{"mjolnir.timezone", {VALHALLA_BUILD_DIR "test/data/tz.sqlite"}}});
   }
 };
 

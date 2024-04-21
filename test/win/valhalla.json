@@ -100,6 +100,7 @@
   },
   "mjolnir": {
     "admin": "test\\data\\netherlands_admin.sqlite",
+    "landmarks": "test\\data\\landmarks.sqlite",
     "hierarchy": true,
     "include_driveways": true,
     "logging": {
@@ -112,7 +113,8 @@
     "tile_dir": "test\\data\\utrecht_tiles",
     "tile_extract": "",
     "timezone": "",
-    "transit_dir": ""
+    "transit_dir": "",
+    "transit_feeds_dir": ""
   },
   "odin": {
     "logging": {

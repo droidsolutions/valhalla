@@ -37,7 +37,7 @@ FormatCondition(const std::string& source, const std::regex& regex, const std::s
   return std::regex_replace(source, regex, pattern);
 }
 
-// get the dow mask from user inputed string.  try to handle most inputs
+// get the dow mask from the provided string.  try to handle most inputs
 uint8_t get_dow_mask(const std::string& dow) {
 
   std::string str = dow;
@@ -68,7 +68,7 @@ uint8_t get_dow_mask(const std::string& dow) {
   return kDOWNone;
 }
 
-// get the dow from user inputed string.  try to handle most inputs
+// get the dow from the provided string.  try to handle most inputs
 DOW get_dow(const std::string& dow) {
 
   std::string str = dow;
@@ -159,7 +159,8 @@ std::vector<uint64_t> get_time_range(const std::string& str) {
     boost::algorithm::trim(condition);
 
     // Holidays and school hours skip for now
-    if (condition.size() >= 2 && (condition.substr(0, 2) == "PH" || condition.substr(0, 2) == "SH")) {
+    if (boost::algorithm::starts_with(condition, "PH") ||
+        boost::algorithm::starts_with(condition, "SH")) {
       return time_domains;
     }
 

@@ -48,7 +48,7 @@ const std::unordered_map<std::string, float> kMaxDistances = {
 // a scale factor to apply to the score so that we bias towards closer results more
 constexpr float kDistanceScale = 10.f;
 
-#ifdef HAVE_HTTP
+#ifdef ENABLE_SERVICES
 std::string serialize_to_pbf(Api& request) {
   std::string buf;
   if (!request.SerializeToString(&buf)) {
@@ -69,7 +69,9 @@ thor_worker_t::thor_worker_t(const boost::property_tree::ptree& config,
     : service_worker_t(config), mode(valhalla::sif::TravelMode::kPedestrian),
       bidir_astar(config.get_child("thor")), bss_astar(config.get_child("thor")),
       multi_modal_astar(config.get_child("thor")), timedep_forward(config.get_child("thor")),
-      timedep_reverse(config.get_child("thor")), isochrone_gen(config.get_child("thor")),
+      timedep_reverse(config.get_child("thor")), costmatrix_(config.get_child("thor")),
+      time_distance_matrix_(config.get_child("thor")),
+      time_distance_bss_matrix_(config.get_child("thor")), isochrone_gen(config.get_child("thor")),
       reader(graph_reader ? graph_reader
                           : std::make_shared<baldr::GraphReader>(config.get_child("mjolnir"))),
       matcher_factory(config, reader), controller{} {
@@ -80,9 +82,10 @@ thor_worker_t::thor_worker_t(const boost::property_tree::ptree& config,
   for (const auto& kv : config.get_child("service_limits")) {
     if (kv.first == "max_exclude_locations" || kv.first == "max_reachability" ||
         kv.first == "max_radius" || kv.first == "max_timedep_distance" ||
-        kv.first == "max_alternates" || kv.first == "max_exclude_polygons_length" ||
-        kv.first == "skadi" || kv.first == "trace" || kv.first == "isochrone" ||
-        kv.first == "centroid" || kv.first == "status") {
+        kv.first == "max_timedep_distance_matrix" || kv.first == "max_alternates" ||
+        kv.first == "max_exclude_polygons_length" || kv.first == "skadi" || kv.first == "trace" ||
+        kv.first == "isochrone" || kv.first == "centroid" || kv.first == "status" ||
+        kv.first == "max_distance_disable_hierarchy_culling") {
       continue;
     }
 
@@ -98,6 +101,8 @@ thor_worker_t::thor_worker_t(const boost::property_tree::ptree& config,
     source_to_target_algorithm = SELECT_OPTIMAL;
   }
 
+  costmatrix_allow_second_pass = config.get<bool>("thor.costmatrix_allow_second_pass", false);
+
   max_timedep_distance =
       config.get<float>("service_limits.max_timedep_distance", kDefaultMaxTimeDependentDistance);
 
@@ -108,7 +113,7 @@ thor_worker_t::thor_worker_t(const boost::property_tree::ptree& config,
 thor_worker_t::~thor_worker_t() {
 }
 
-#ifdef HAVE_HTTP
+#ifdef ENABLE_SERVICES
 prime_server::worker_t::result_t
 thor_worker_t::work(const std::list<zmq::message_t>& job,
                     void* request_info,
@@ -226,8 +231,7 @@ std::string thor_worker_t::parse_costing(const Api& request) {
   return costing_str;
 }
 
-void thor_worker_t::parse_locations(Api& request) {
-  auto& options = *request.mutable_options();
+void thor_worker_t::adjust_scores(valhalla::Options& options) {
   for (auto* locations :
        {options.mutable_locations(), options.mutable_sources(), options.mutable_targets()}) {
     for (auto& location : *locations) {
@@ -311,9 +315,9 @@ void thor_worker_t::cleanup() {
   multi_modal_astar.Clear();
   bss_astar.Clear();
   trace.clear();
-  costmatrix_.clear();
-  time_distance_matrix_.clear();
-  time_distance_bss_matrix_.clear();
+  costmatrix_.Clear();
+  time_distance_matrix_.Clear();
+  time_distance_bss_matrix_.Clear();
   isochrone_gen.Clear();
   centroid_gen.Clear();
   matcher_factory.ClearFullCache();
