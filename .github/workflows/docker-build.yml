@@ -13,7 +13,6 @@ on:
 jobs:
   build_and_publish:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'droidsolutions' }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
